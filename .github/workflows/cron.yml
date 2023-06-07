@@ -1,0 +1,41 @@
+on:
+  push: # push from GitHub Actions will not trigger this workflow
+  schedule:
+  - cron: '38 0 * * *'
+concurrency: cron
+defaults:
+  run:
+    shell: bash
+env:
+  PYTHONUNBUFFERED: '1'
+jobs:
+  check:
+    if: github.ref == 'refs/heads/master'
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        fetch-depth: 2
+    - uses: actions/setup-python@v4
+      with:
+        python-version: 3.x
+    - name: Install dependencies
+      run: pip3 install -r requirements.txt
+    - name: Looking for new downloads and upload as release
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: ./check.py
+    - name: Commit if dirty
+      if: ${{ always() }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |-
+        [ -z "$(git status --porcelain)" ] && exit 0
+        git config --local user.name 'GitHub Actions'
+        git config --local user.email "$(whoami)@$(hostname --fqdn)"
+        git add state.txt
+        git commit -m '[gh-actions] update state'
+        git push "https://dummy:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:master
