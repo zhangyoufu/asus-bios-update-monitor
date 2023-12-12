@@ -27,8 +27,13 @@ class BIOSRelease:
 def fetch() -> list[BIOSRelease]:
     # url = 'https://www.asus.com.cn/motherboards-components/motherboards/prime/prime-x670e-pro-wifi/helpdesk_bios?model2Name=PRIME-X670E-PRO-WIFI'
     url = 'https://www.asus.com/motherboards-components/motherboards/prime/prime-x670e-pro-wifi/helpdesk_bios?model2Name=PRIME-X670E-PRO-WIFI'
-    text = requests.get(url, headers={'User-Agent': 'Mozilla'}).text
-    text = re.search(r'(?s)productSupportBIOS:\[\{Name:"BIOS",Count:.*?,Files:\[(.*?)\],IsDescShow:', text).group(1)
+    for i in range(3):
+        text = requests.get(url, headers={'User-Agent': 'Mozilla'}).text
+        m = re.search(r'(?s)productSupportBIOS:\[\{Name:"BIOS",Count:.*?,Files:\[(.*?)\],IsDescShow:', text)
+        if m: break
+    else:
+        raise ValueError(text)
+    text = m.group(1)
     logger.debug('web: %s', text)
     text = re.sub(r',(?:FileSize|IsRelease|PosType|HardwareInfoList|INFDate|SWID|ExeModule|Reboot|Ac_power|Usefor|Severity|UserSession|Sign|Tid|assistant_key):[A-Za-z]{1,2}(?=[,}])', '', text)
     text = re.sub(r'Id:".*?",', '', text)
