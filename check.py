@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 from typing import Any, TypeAlias
-import ast
 import dataclasses
 import datetime
 import github
@@ -10,6 +9,7 @@ import re
 import requests
 import tempfile
 import zoneinfo
+import STPyV8
 
 
 logger = logging.getLogger(__name__)
@@ -29,29 +29,21 @@ def fetch() -> list[BIOSRelease]:
     url = 'https://www.asus.com/motherboards-components/motherboards/prime/prime-x670e-pro-wifi/helpdesk_bios?model2Name=PRIME-X670E-PRO-WIFI'
     for i in range(3):
         text = requests.get(url, headers={'User-Agent': 'Mozilla'}).text
-        m = re.search(r'(?s)productSupportBIOS:\[\{Name:"BIOS",Count:.*?,Files:\[(.*?)\],IsDescShow:', text)
+        m = re.search(r'<script>window.__NUXT__=(\(.*\));\s*</script>', text)
         if m: break
     else:
         raise ValueError(text)
-    text = m.group(1)
-    logger.debug('web: %s', text)
-    text = re.sub(r',(?:FileSize|IsRelease|PosType|HardwareInfoList|INFDate|SWID|ExeModule|Reboot|Ac_power|Usefor|Severity|UserSession|Sign|Tid|assistant_key):[A-Za-z]{1,2}(?=[,}])', '', text)
-    text = re.sub(r'Id:".*?",', '', text)
-    result = []
-    while text:
-        m = re.match(r'\{Version:("[^"]+"),Title:("[^"]+"),Description:(".*?"),(?:FileSize:"[^"]+",)?ReleaseDate:("[^"]+"),DownloadUrl:\{Global:("[^"]+"),China:(?:"[^"]+"|[A-Za-z]+)\}\}(?:,|$)', text)
-        text = text[m.end():]
-        version, title, description, release_date, url = map(ast.literal_eval, m.groups())
-        description = description.strip('"').replace('<br/>', '\n')
-        description = re.sub(r'\n*Before running the USB BIOS Flashback tool, please rename the BIOS file ?\(PX670ERW\.CAP\) using BIOSRenamer\.\n*', '', description)
-        url = url.split('?', 1)[0]
-        result.append(BIOSRelease(
-            date=datetime.date.fromisoformat(release_date.replace('/', '-')),
-            version=version,
-            title=title,
-            url=url,
-            description=description,
-        ))
+    with STPyV8.JSContext() as js_ctx:
+        for js_file in js_ctx.eval(m.group(1))['state']['PDSupport']['productSupportBIOS'][0]['Files']:
+            description = js_file['Description'].strip('"').replace('<br/>', '\n')
+            description = re.sub(r'\n*Before running the USB BIOS Flashback tool, please rename the BIOS file ?\(PX670ERW\.CAP\) using BIOSRenamer\.\n*', '', description)
+            result.append(BIOSRelease(
+                date=datetime.date.fromisoformat(js_file['ReleaseDate'].replace('/', '-')),
+                version=js_file['Version'],
+                title=js_file['Title'],
+                url=js_file['DownloadUrl']['Global'].split('?', 1)[0],
+                description=description,
+            ))
     return result
 
 
