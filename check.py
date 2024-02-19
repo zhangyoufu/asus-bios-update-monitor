@@ -33,6 +33,7 @@ def fetch() -> list[BIOSRelease]:
         if m: break
     else:
         raise ValueError(text)
+    result = []
     with STPyV8.JSContext() as js_ctx:
         for js_file in js_ctx.eval(m.group(1))['state']['PDSupport']['productSupportBIOS'][0]['Files']:
             description = js_file['Description'].strip('"').replace('<br/>', '\n')
