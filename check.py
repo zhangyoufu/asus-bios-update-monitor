@@ -46,8 +46,8 @@ def fetch() -> list[BIOSRelease]:
 
 
 def process(bios: BIOSRelease) -> None:
-    if bios.version == '3042' and bios.title == '':
-        bios.title = 'PRIME X670E-PRO WIFI BIOS 3042'
+    if re.fullmatch(r'\d+', bios.version) and bios.title == '':
+        bios.title = f'PRIME X670E-PRO WIFI BIOS {bios.version}'
     assert bios.title.strip(), bios
     release = github.github_release_ensure(
         tag_name=bios.title.replace(' ', '_'),
