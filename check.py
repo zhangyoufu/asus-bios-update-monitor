@@ -46,9 +46,6 @@ def fetch() -> list[BIOSRelease]:
 
 
 def process(bios: BIOSRelease) -> None:
-    if re.fullmatch(r'\d+', bios.version) and bios.title == '':
-        bios.title = f'PRIME X670E-PRO WIFI BIOS {bios.version}'
-    assert bios.title.strip(), bios
     release = github.github_release_ensure(
         tag_name=bios.title.replace(' ', '_'),
         name=bios.title,
@@ -83,6 +80,9 @@ def main() -> None:
     logging.getLogger('urllib3').setLevel(logging.INFO)
     state = load_state()
     for bios in fetch():
+        if re.fullmatch(r'\d+', bios.version) and bios.title == '':
+            bios.title = f'PRIME X670E-PRO WIFI BIOS {bios.version}'
+        assert bios.title.strip(), bios
         if bios.title in state:
             continue
         logger.info('processing %s', bios.title)
