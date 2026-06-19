@@ -18,16 +18,8 @@ jobs:
     permissions:
       contents: write
     steps:
-    - name: Checkout Git repo
+    - uses: zhangyoufu/actions/checkout@main
       timeout-minutes: 1
-      run: |-
-        git config --global init.defaultBranch main
-        git init .
-        git remote add origin '${{ github.server_url }}/${{ github.repository }}.git'
-        git config set --local advice.detachedHead false
-        git config set --local 'http.${{ github.server_url }}.extraHeader' "Authorization: Basic $(echo -n 'x-access-token:${{ github.token }}' | base64 -w0)"
-        git fetch --depth 1 origin '${{ github.sha }}'
-        git checkout --progress FETCH_HEAD
 
     - name: Looking for new downloads and upload as release
       env:
@@ -38,8 +30,6 @@ jobs:
       if: ${{ always() }}
       run: |-
         [ -z "$(git status --porcelain)" ] && exit 0
-        git config set user.name 'github-actions[bot]'
-        git config set user.email '${{ github.actor_id }}+github-actions[bot]@users.noreply.github.com'
         git add state.txt
         git commit -m '[gh-actions] update state'
         git push origin HEAD:main
