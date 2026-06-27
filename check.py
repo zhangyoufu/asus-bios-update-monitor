@@ -46,12 +46,12 @@ def fetch() -> list[BIOSRelease]:
 
 
 def process(bios: BIOSRelease) -> None:
-    release = github.github_release_ensure(
+    release = github.ensure_release(
         tag_name=bios.title.replace(' ', '_'),
         name=bios.title,
         timestamp=datetime.datetime.combine(bios.date, datetime.time(), tzinfo=zoneinfo.ZoneInfo('Asia/Shanghai')),
     )
-    github.github_release_patch(release, body=bios.description)
+    github.patch_release(release, body=bios.description)
     with tempfile.TemporaryFile() as f:
         rsp = requests.get(
             url=bios.url,
@@ -61,7 +61,7 @@ def process(bios: BIOSRelease) -> None:
         assert rsp.status_code == 200, f'HTTP {rsp.status_code} {rsp.reason}\n{rsp.text}'
         for chunk in rsp.iter_content(16*1024*1024):
             f.write(chunk)
-        github.github_release_upload_asset(release, bios.url.rsplit('/', 1)[-1], f)
+        github.upload_release_asset(release, bios.url.rsplit('/', 1)[-1], f)
 
 
 state_file = pathlib.Path('state.txt')

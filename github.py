@@ -12,34 +12,34 @@ logger = logging.getLogger(__name__)
 GITHUB_REPOSITORY = os.environ['GITHUB_REPOSITORY']
 GITHUB_TOKEN = os.environ['GITHUB_TOKEN']
 
-github_headers = {
+headers = {
     'Accept': 'application/vnd.github.v3+json',
     'Authorization': f'token {GITHUB_TOKEN}',
 }
 
-GitHubReleaseDict: TypeAlias = dict[str, Any]
-GitHubReleaseAssetDict: TypeAlias = dict[str, Any]
+ReleaseDict: TypeAlias = dict[str, Any]
+ReleaseAssetDict: TypeAlias = dict[str, Any]
 
-def github_release_ensure(tag_name: str, name: str, timestamp: datetime.datetime) -> GitHubReleaseDict:
-    release = github_release_get_by_tag(tag_name)
+def ensure_release(tag_name: str, name: str, timestamp: datetime.datetime) -> ReleaseDict:
+    release = get_release_by_tag(tag_name)
     if not release:
-        release = github_release_create(tag_name, name, timestamp)
+        release = create_release(tag_name, name, timestamp)
     return release
 
-def github_release_get_by_tag(tag_name: str) -> GitHubReleaseDict:
+def get_release_by_tag(tag_name: str) -> ReleaseDict:
     rsp = requests.get(f'https://api.github.com/repos/{GITHUB_REPOSITORY}/releases/tags/{tag_name}',
-        headers=github_headers,
+        headers=headers,
         allow_redirects=False,
     )
     if rsp.status_code == 200:
         return rsp.json()
     assert rsp.status_code == 404, f'HTTP {rsp.status_code} {rsp.reason}\n{rsp.text}'
 
-def github_release_patch(release: GitHubReleaseDict, **kwargs) -> None:
-    rsp = requests.patch(release['url'], headers=github_headers, allow_redirects=False, json=kwargs)
+def patch_release(release: ReleaseDict, **kwargs) -> None:
+    rsp = requests.patch(release['url'], headers=headers, allow_redirects=False, json=kwargs)
     assert rsp.status_code == 200, f'HTTP {rsp.status_code} {rsp.reason}\n{rsp.text}'
 
-def github_release_create(tag_name: str, name: str, timestamp: datetime.datetime) -> GitHubReleaseDict:
+def create_release(tag_name: str, name: str, timestamp: datetime.datetime) -> ReleaseDict:
     subprocess.run(f'''set -eux
 COMMIT=$(git commit-tree 4b825dc642cb6eb9a060e54bf8d69288fbee4904 </dev/null)
 git tag -f {tag_name} $COMMIT
@@ -57,7 +57,7 @@ git push -f -u origin refs/tags/{tag_name}
         check=True,
     )
     rsp = requests.post(f'https://api.github.com/repos/{GITHUB_REPOSITORY}/releases',
-        headers=github_headers,
+        headers=headers,
         json={
             'tag_name': tag_name,
             'name': name,
@@ -67,11 +67,11 @@ git push -f -u origin refs/tags/{tag_name}
     assert rsp.status_code == 201, f'HTTP {rsp.status_code} {rsp.reason}\n{rsp.text}'
     return rsp.json()
 
-def github_release_get_assets(assets_url: str) -> list[GitHubReleaseAssetDict]:
+def get_release_assets(assets_url: str) -> list[ReleaseAssetDict]:
     assets = []
     url = f'{assets_url}?per_page=100'
     while 1:
-        rsp = requests.get(url=url, headers=github_headers, allow_redirects=False)
+        rsp = requests.get(url=url, headers=headers, allow_redirects=False)
         assert rsp.status_code == 200, f'HTTP {rsp.status_code} {rsp.reason}\n{rsp.text}'
         assets.extend(rsp.json())
         if 'next' not in rsp.links:
@@ -79,16 +79,16 @@ def github_release_get_assets(assets_url: str) -> list[GitHubReleaseAssetDict]:
         url = rsp.links['next']['url']
     return assets
 
-def github_release_delete_asset(assets_url: str, name: str) -> None:
-    for asset in github_release_get_assets(assets_url):
+def delete_release_asset(assets_url: str, name: str) -> None:
+    for asset in get_release_assets(assets_url):
         if asset['name'] == name:
             break
     else:
         raise ValueError(f'asset {name} not found')
-    rsp = requests.delete(url=asset['url'], headers=github_headers, allow_redirects=False)
+    rsp = requests.delete(url=asset['url'], headers=headers, allow_redirects=False)
     assert rsp.status_code == 204, f'HTTP {rsp.status_code} {rsp.reason}\n{rsp.text}'
 
-def github_release_upload_asset(release: GitHubReleaseDict, filename: str, src: io.RawIOBase) -> None:
+def upload_release_asset(release: ReleaseDict, filename: str, src: io.RawIOBase) -> None:
     logger.info(f'Uploading {filename}...')
     upload_url = release['upload_url'].split('{', 1)[0]
     for retry in range(3):
@@ -96,7 +96,7 @@ def github_release_upload_asset(release: GitHubReleaseDict, filename: str, src: 
         try:
             rsp = requests.post(upload_url,
                 params={'name': filename},
-                headers=github_headers | {
+                headers=headers | {
                     'Content-Type': 'application/octet-stream',
                 },
                 data=src,
@@ -108,7 +108,7 @@ def github_release_upload_asset(release: GitHubReleaseDict, filename: str, src: 
             if rsp.status_code == 422:
                 ## assume {"resource":"ReleaseAsset","code":"already_exists","field":"name"}
                 try:
-                    github_release_delete_asset(release['assets_url'], filename)
+                    delete_release_asset(release['assets_url'], filename)
                 finally:
                     pass
             else:
@@ -117,7 +117,7 @@ def github_release_upload_asset(release: GitHubReleaseDict, filename: str, src: 
             logger.exception('Connection error')
             ## somehow, existed assets may also cause ConnectionError
             try:
-                github_release_delete_asset(release['assets_url'], filename)
+                delete_release_asset(release['assets_url'], filename)
             finally:
                 pass
         logger.error('Upload failed, retry')
