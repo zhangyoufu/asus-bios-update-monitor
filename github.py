@@ -22,6 +22,21 @@ session.headers = {
 ReleaseDict: TypeAlias = dict[str, Any]
 ReleaseAssetDict: TypeAlias = dict[str, Any]
 
+def list_release() -> list[ReleaseDict]:
+    releases = []
+    url = f'https://api.github.com/repos/{GITHUB_REPOSITORY}/releases?per_page=100'
+    while 1:
+        rsp = session.get(
+            url=url,
+            allow_redirects=False,
+        )
+        assert rsp.status_code == 200, f'HTTP {rsp.status_code} {rsp.reason}\n{rsp.text}'
+        releases.extend(rsp.json())
+        if 'next' not in rsp.links:
+            break
+        url = rsp.links['next']['url']
+    return releases
+
 def ensure_release(tag_name: str, name: str, timestamp: datetime.datetime) -> ReleaseDict:
     release = get_release_by_tag(tag_name)
     if not release:

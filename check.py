@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
-from typing import Any, TypeAlias
 import dataclasses
 import datetime
 import github
 import logging
-import pathlib
 import re
 import requests
 import tempfile
@@ -64,31 +62,19 @@ def process(bios: BIOSRelease) -> None:
         github.upload_release_asset(release, bios.url.rsplit('/', 1)[-1], f)
 
 
-state_file = pathlib.Path('state.txt')
-
-def load_state() -> set[str]:
-    if state_file.exists():
-        return set(state_file.read_text().rstrip('\n').split('\n'))
-    else:
-        return set()
-
-def save_state(state: set[str]) -> None:
-    state_file.write_text(''.join(item+'\n' for item in sorted(state)))
-
 def main() -> None:
     logging.basicConfig(level=logging.DEBUG)
     logging.getLogger('urllib3').setLevel(logging.INFO)
-    state = load_state()
+    known = set(release['name'] for release in github.list_release())
     for bios in fetch():
         if re.fullmatch(r'\d+', bios.version) and bios.title == '':
             bios.title = f'PRIME X670E-PRO WIFI BIOS {bios.version}'
         assert bios.title.strip(), bios
-        if bios.title in state:
+        if bios.title in known:
             continue
         logger.info('processing %s', bios.title)
         process(bios)
-        state.add(bios.title)
-        save_state(state)
+
 
 if __name__ == '__main__':
     main()
