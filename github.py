@@ -12,7 +12,9 @@ logger = logging.getLogger(__name__)
 GITHUB_REPOSITORY = os.environ['GITHUB_REPOSITORY']
 GITHUB_TOKEN = os.environ['GITHUB_TOKEN']
 
-headers = {
+session = requests.Session()
+session.cookies._policy.set_ok = lambda cookie, request: False
+session.headers = {
     'Accept': 'application/vnd.github.v3+json',
     'Authorization': f'token {GITHUB_TOKEN}',
 }
@@ -27,8 +29,7 @@ def ensure_release(tag_name: str, name: str, timestamp: datetime.datetime) -> Re
     return release
 
 def get_release_by_tag(tag_name: str) -> ReleaseDict:
-    rsp = requests.get(f'https://api.github.com/repos/{GITHUB_REPOSITORY}/releases/tags/{tag_name}',
-        headers=headers,
+    rsp = session.get(f'https://api.github.com/repos/{GITHUB_REPOSITORY}/releases/tags/{tag_name}',
         allow_redirects=False,
     )
     if rsp.status_code == 200:
@@ -36,7 +37,7 @@ def get_release_by_tag(tag_name: str) -> ReleaseDict:
     assert rsp.status_code == 404, f'HTTP {rsp.status_code} {rsp.reason}\n{rsp.text}'
 
 def patch_release(release: ReleaseDict, **kwargs) -> None:
-    rsp = requests.patch(release['url'], headers=headers, allow_redirects=False, json=kwargs)
+    rsp = session.patch(release['url'], allow_redirects=False, json=kwargs)
     assert rsp.status_code == 200, f'HTTP {rsp.status_code} {rsp.reason}\n{rsp.text}'
 
 def create_release(tag_name: str, name: str, timestamp: datetime.datetime) -> ReleaseDict:
@@ -56,8 +57,7 @@ git push -f -u origin refs/tags/{tag_name}
         shell=True,
         check=True,
     )
-    rsp = requests.post(f'https://api.github.com/repos/{GITHUB_REPOSITORY}/releases',
-        headers=headers,
+    rsp = session.post(f'https://api.github.com/repos/{GITHUB_REPOSITORY}/releases',
         json={
             'tag_name': tag_name,
             'name': name,
@@ -71,7 +71,7 @@ def get_release_assets(assets_url: str) -> list[ReleaseAssetDict]:
     assets = []
     url = f'{assets_url}?per_page=100'
     while 1:
-        rsp = requests.get(url=url, headers=headers, allow_redirects=False)
+        rsp = session.get(url=url, allow_redirects=False)
         assert rsp.status_code == 200, f'HTTP {rsp.status_code} {rsp.reason}\n{rsp.text}'
         assets.extend(rsp.json())
         if 'next' not in rsp.links:
@@ -85,7 +85,7 @@ def delete_release_asset(assets_url: str, name: str) -> None:
             break
     else:
         raise ValueError(f'asset {name} not found')
-    rsp = requests.delete(url=asset['url'], headers=headers, allow_redirects=False)
+    rsp = session.delete(url=asset['url'], allow_redirects=False)
     assert rsp.status_code == 204, f'HTTP {rsp.status_code} {rsp.reason}\n{rsp.text}'
 
 def upload_release_asset(release: ReleaseDict, filename: str, src: io.RawIOBase) -> None:
@@ -94,9 +94,9 @@ def upload_release_asset(release: ReleaseDict, filename: str, src: io.RawIOBase)
     for retry in range(3):
         src.seek(0)
         try:
-            rsp = requests.post(upload_url,
+            rsp = session.post(upload_url,
                 params={'name': filename},
-                headers=headers | {
+                headers={
                     'Content-Type': 'application/octet-stream',
                 },
                 data=src,
