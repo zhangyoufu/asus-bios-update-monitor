@@ -22,7 +22,7 @@ class BIOSRelease:
 
 
 def fetch() -> list[BIOSRelease]:
-    url = 'https://www.asus.com/support/api/product.asmx/GetPDBIOS?website=global&pdid=21002'
+    url = 'https://www.asus.com/support/webapi/ProductV2/GetPDBIOS?website=global&pdid=21002'
     rsp = requests.get(url, headers={'User-Agent': 'Mozilla'})
     assert rsp.status_code == 200, f'HTTP {rsp.status_code} {rsp.reason}\n{rsp.text}'
     body = rsp.json()
