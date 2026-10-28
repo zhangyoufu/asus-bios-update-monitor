@@ -37,7 +37,7 @@ def fetch() -> list[BIOSRelease]:
             date=datetime.date.fromisoformat(bios_file['ReleaseDate'].replace('/', '-')),
             version=bios_file['Version'],
             title=bios_file['Title'],
-            url=bios_file['DownloadUrl']['Global'].split('?', 1)[0],
+            url='https://dlcdnets.asus.com'+bios_file['DownloadUrl']['Global'],
             description=description,
         ))
     return result
